@@ -18,7 +18,7 @@
             "mainClass": "DbDo",
             "projectName": "DbDo_62830a0a",
             "args": [
-                "-d", "jdbc:postgresql://localhost:5432/bundo_db",
+                "-d", "jdbc:postgresql://localhost:5432/db_do",
                 "-u", "postgres",
                 "-p", "password",
                 "-s", "brandon.sql"

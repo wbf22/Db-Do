@@ -8,9 +8,11 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -70,46 +72,138 @@ class DbDo {
         String script = parsedArgs.get("-s");
 
         try {
-            Connection connection = DriverManager.getConnection(url, username, password);
 
             // Perform database operations here
             // pgp('postgres://postgres:password@localhost:5432/bundo_db');
+            Connection connection = DriverManager.getConnection(url, username, password);
 
             Statement statement = connection.createStatement();
             String sql = Files.readString(
                 Path.of(script)
             );
-            ResultSet resultSet = statement.executeQuery(sql);
+            statement.execute(sql);
+            ResultSet resultSet = statement.getResultSet();
 
-            // get the length of column names
-            int columnLabelLength = 0;
-            for (int i = 1; i <= resultSet.getMetaData().getColumnCount(); i++) {
-                int nameLength = resultSet.getMetaData().getColumnName(i).length();
-                if (nameLength > columnLabelLength) columnLabelLength = nameLength;
-            }
+            if (resultSet != null) {
 
-            // Process the ResultSet
-            while (resultSet.next()) {
-                System.out.println();
+                // get the length of column names
+                int columnLabelLength = 0;
                 for (int i = 1; i <= resultSet.getMetaData().getColumnCount(); i++) {
-                    String columnName = fitToLength(
-                        resultSet.getMetaData().getColumnName(i),
-                        columnLabelLength
-                    );
-                    String columnValue = getColumnValue(resultSet, i).toString();
-                    String columnColor = getColumnColor(resultSet, i);
-                    System.out.println(columnName + "   " + columnColor +  columnValue+ AnsiControl.RESET);
+                    int nameLength = resultSet.getMetaData().getColumnName(i).length();
+                    if (nameLength > columnLabelLength) columnLabelLength = nameLength;
                 }
+
+                // Process the ResultSet
+                int biggestRow = 0;
+                List<List<Record>> allRecords = new ArrayList<>();
+                while (resultSet.next()) {
+
+                    List<Record> records = new ArrayList<>();
+                    for (int i = 1; i <= resultSet.getMetaData().getColumnCount(); i++) {
+                        String columnName = fitToLength(
+                            resultSet.getMetaData().getColumnName(i),
+                            columnLabelLength
+                        );
+                        String columnValue = getColumnValue(resultSet, i).toString();
+
+                        PostgresType type = getColumnType(resultSet, i);
+                        int totalLength = columnName.length() + 3 +  columnValue.length();
+                        records.add(
+                            new Record(
+                                type,
+                                columnName,
+                                columnValue,
+                                totalLength
+                            )
+                        );
+
+                        if (totalLength > biggestRow) biggestRow = totalLength;
+                    }
+                    allRecords.add(
+                        records
+                    );
+                }
+
+                // pretty print out records
+                if (!allRecords.isEmpty()) {
+                    // print out pretty
+                    int width = getTerminalWidth();
+                    int recordsPerRow = width / biggestRow;
+                    if (recordsPerRow < 1) recordsPerRow = 1;
+                    int desiredLength = (width / recordsPerRow) ;
+                    for (int i = 0; i < allRecords.size(); i++) {
+                        
+                        System.out.println();
+                        boolean finishedY = false;
+                        int y = 0;
+                        while (!finishedY) {
+
+                            finishedY = true;
+                            for (int x = 0; x < recordsPerRow; x++) {
+                                if (i + x < allRecords.size()) {
+                                    List<Record> records = allRecords.get(i + x);
+                                    if (y < records.size()) {
+                                        // String rowValue = columnName + "   " + columnColor +  columnValue + AnsiControl.RESET;
+                                        Record record = records.get(y);
+                                        int neededWhitespace = desiredLength - record.totalLength;
+                                        if (neededWhitespace < 0) neededWhitespace = 0;
+                                        String value = record.columnName + "   " + getColumnColor(record.type) + record.columnValue + AnsiControl.RESET + " ".repeat(neededWhitespace);
+                                        System.out.print(value);
+                                        // int total = value.length();
+                                        finishedY = false;
+                                    }
+                                    else {
+                                        System.out.print(" ".repeat(desiredLength));
+
+                                    }
+                                }
+                                else {
+                                    System.out.print(" ".repeat(desiredLength));
+                                }
+                            }
+                            System.out.println();
+                            y++;
+                        }
+                        i += recordsPerRow;
+                        System.out.println();
+        
+        
+                    }
+
+                }
+
+            }
+            else {
+                System.out.println();
+                System.out.println("NO RESULTS");
                 System.out.println();
             }
+
 
             connection.close(); // Close the connection when done
+
         } catch (SQLException | IOException e) {
             System.err.println("Error: " + e.getMessage());
         }
 
 
     
+    }
+
+    public static class Record {
+        public PostgresType type;
+        public String columnName;
+        public String columnValue;
+        public int totalLength;
+
+        public Record(DbDo.PostgresType type, String columnName, String columnValue, int totalLength) {
+            this.type = type;
+            this.columnName = columnName;
+            this.columnValue = columnValue;
+            this.totalLength = totalLength;
+        }
+
+        
     }
 
     public static class ArgParser {
@@ -242,17 +336,18 @@ class DbDo {
         };
     }
 
-    private static String getColumnColor(ResultSet resultSet, int index) throws SQLException {
-        PostgresType type = getColumnType(resultSet, index);
-
+    private static String getColumnColor(PostgresType type) throws SQLException {
         return switch (type) {
-            case int8, bigserial, float8, money, numeric -> AnsiControl.color(75, 140, 214);
+            case int8, bigserial, float8, money, numeric -> 
+                AnsiControl.color(214, 75, 200);
             case varchar, bpchar, cidr, inet, json, jsonb, macaddr, macaddr8, text, tsquery, tsvector, uuid, xml -> 
                 AnsiControl.color(75, 214, 84);
             case date, time, timetz, timestamp, timestamptz -> 
                 AnsiControl.color(214, 75, 75);
-            case bool -> AnsiControl.color(214, 75, 200);
-            case int4, int2, smallserial, serial, float4 -> AnsiControl.color(75, 193, 214);
+            case bool -> 
+                AnsiControl.color(33, 129, 219);
+            case int4, int2, smallserial, serial, float4 -> 
+                AnsiControl.color(75, 193, 214);
             default -> AnsiControl.color(194, 194, 194);
         };
     }
@@ -302,7 +397,6 @@ class DbDo {
         xml;
     }
 
-
     private static String fitToLength(String str, int length) {
         if (str.length() > length) {
             return str.substring(0, length);
@@ -315,7 +409,6 @@ class DbDo {
             return stringBuilder.toString();
         }
     }
-
 
     public enum AnsiControl {
 
@@ -366,6 +459,30 @@ class DbDo {
         public String toString() {
             return code;
         }
+    }
+
+    public static int getTerminalWidth() {
+        int width = 80; // Default width
+        try {
+            Process process = new ProcessBuilder("sh", "-c", "tput cols 2> /dev/tty").start();
+            process.waitFor();
+            width = Integer.parseInt(new String(process.getInputStream().readAllBytes()).trim());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return width;
+    }
+
+    public static int getTerminalHeight() {
+        int height = 24; // Default height
+        try {
+            Process process = new ProcessBuilder("sh", "-c", "tput lines 2> /dev/tty").start();
+            process.waitFor();
+            height = Integer.parseInt(new String(process.getInputStream().readAllBytes()).trim());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return height - 1;
     }
 
 
