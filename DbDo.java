@@ -18,6 +18,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.Map.Entry;
 
+import DbDo.ArgParser.HelpException;
+
 class DbDo {
 
 
@@ -44,7 +46,7 @@ class DbDo {
         );
 
 
-        Map<String, String> parsedArgs = ArgParser.parseArgs(
+        ArgParser parser = new ArgParser(
             args, 
             shortArgs, 
             null, 
@@ -57,7 +59,7 @@ class DbDo {
             On linux and mac you can make a file such as 'db.sh' and stick a command like
             this in the file: 
             
-                'dbdo -d jdbc:postgresql://localhost:5432/my_db -u my_user -p my_password -s my_sql_script.sql'
+                'java -jar path/to/DbDo.jar -d jdbc:postgresql://localhost:5432/my_db -u my_user -p my_password -s my_sql_script.sql'
 
             You can then run this command much easier by just running 'sh db.sh' in the terminal. You can then
             spend most of your time just editing queries and viewing the results instead of typing out the 
@@ -66,12 +68,13 @@ class DbDo {
             true
         );
 
-        String url = parsedArgs.get("-d");
-        String username = parsedArgs.get("-u");
-        String password = parsedArgs.get("-p");
-        String script = parsedArgs.get("-s");
-
         try {
+            Map<String, String> parsedArgs = parser.parseArgs();
+    
+            String url = parsedArgs.get("-d");
+            String username = parsedArgs.get("-u");
+            String password = parsedArgs.get("-p");
+            String script = parsedArgs.get("-s");
 
             // Perform database operations here
             // pgp('postgres://postgres:password@localhost:5432/bundo_db');
@@ -147,13 +150,15 @@ class DbDo {
                                         Record record = records.get(y);
                                         int neededWhitespace = desiredLength - record.totalLength;
                                         if (neededWhitespace < 0) neededWhitespace = 0;
+                                        if (x == recordsPerRow - 1) neededWhitespace = 0;
                                         String value = record.columnName + "   " + getColumnColor(record.type) + record.columnValue + AnsiControl.RESET + " ".repeat(neededWhitespace);
                                         System.out.print(value);
                                         // int total = value.length();
                                         finishedY = false;
                                     }
                                     else {
-                                        System.out.print(" ".repeat(desiredLength));
+                                        if (x != recordsPerRow - 1)
+                                            System.out.print(" ".repeat(desiredLength));
 
                                     }
                                 }
@@ -164,7 +169,7 @@ class DbDo {
                             System.out.println();
                             y++;
                         }
-                        i += recordsPerRow;
+                        i += recordsPerRow - 1;
                         System.out.println();
         
         
@@ -185,6 +190,7 @@ class DbDo {
         } catch (SQLException | IOException e) {
             System.err.println("Error: " + e.getMessage());
         }
+        catch(ArgParser.HelpException e) {}
 
 
     
@@ -206,11 +212,22 @@ class DbDo {
         
     }
 
+
     public static class ArgParser {
 
         public static class HelpException extends RuntimeException {}
 
-        private static Map<String, String> parseArgs(
+        public String[] args;
+        public Map<String, String> shortFlags;
+        public Map<String, String> longFlags;
+        public Map<String, String> booleanFlags;
+        public Map<String, String> helpFlags;
+        public String appName;
+        public String appDescription;
+        public String notes;
+        public boolean showManOnNoArgs;
+    
+        public ArgParser(
             String[] args, 
             Map<String, String> shortFlags, 
             Map<String, String> longFlags, 
@@ -220,7 +237,20 @@ class DbDo {
             String appDescription, 
             String notes,
             boolean showManOnNoArgs
-        ) {
+        )
+        {
+            this.args = args;
+            this.shortFlags = shortFlags;
+            this.longFlags = longFlags;
+            this.booleanFlags = booleanFlags;
+            this.helpFlags = helpFlags;
+            this.appName = appName;
+            this.appDescription = appDescription;
+            this.notes = notes;
+            this.showManOnNoArgs = showManOnNoArgs;
+        }
+
+        private Map<String, String> parseArgs() {
             
             try {
 
@@ -260,7 +290,7 @@ class DbDo {
                 return parsedArgs;
             }
             catch(Exception e) {
-                printMan(shortFlags, longFlags, booleanFlags, helpFlags, appName, appDescription, notes);
+                printMan();
     
                 if (e instanceof HelpException) {
                     throw e;
@@ -276,27 +306,19 @@ class DbDo {
     
         }
         
-        private static void printMan(
-            Map<String, String> shortFlags, 
-            Map<String, String> longFlags, 
-            Map<String, String> booleanFlags, 
-            Map<String, String> helpFlags, 
-            String appName, 
-            String appDescription, 
-            String notes
-        ) {
+        private void printMan() {
             System.out.println(appName);
             System.out.println();
             System.out.println(appDescription);
             System.out.println();
             System.out.println("Args");
             Map<String, String> allFlags = new LinkedHashMap<>();
-            allFlags.putAll(booleanFlags);
-            allFlags.putAll(shortFlags);
-            allFlags.putAll(longFlags);
-            allFlags.putAll(helpFlags);
+            if (booleanFlags != null) allFlags.putAll(booleanFlags);
+            if (shortFlags != null) allFlags.putAll(shortFlags);
+            if (longFlags != null) allFlags.putAll(longFlags);
+            if (helpFlags != null) allFlags.putAll(helpFlags);
             int longestFlagName = allFlags.entrySet().stream()
-                .mapToInt(entry -> entry.getValue().length())
+                .mapToInt(entry -> entry.getKey().length())
                 .max()
                 .orElse(0);
             for (Entry<String, String> entry : allFlags.entrySet()) {

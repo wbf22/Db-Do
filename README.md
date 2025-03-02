@@ -4,3 +4,6 @@ Command line postgres database inscpection tool. Read queries from a provided fi
 
 
 java -jar DbDo.jar -d jdbc:postgresql://localhost:5432/db_do -u postgres -p password -s brandon.sql
+
+
+java -jar /home/brandon/Documents/DbDo/DbDo.jar -d jdbc:postgresql://localhost:5432/db_do -u postgres -p password -s brandon.sql
