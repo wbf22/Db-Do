@@ -7,18 +7,13 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
 import java.util.Map.Entry;
 
-import DbDo.ArgParser.HelpException;
 
 class DbDo {
 
@@ -175,6 +170,11 @@ class DbDo {
         
                     }
 
+                }
+                else {
+                    System.out.println();
+                    System.out.println("NO RESULTS");
+                    System.out.println();
                 }
 
             }
