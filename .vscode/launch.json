@@ -16,12 +16,18 @@
             "name": "DbDo",
             "request": "launch",
             "mainClass": "DbDo",
-            "projectName": "DbDo_62830a0a",
+            "projectName": "Db-Do_59a65b7d",
             "args": [
-                "-d", "jdbc:postgresql://localhost:5432/db_do",
+                // "-d", "jdbc:postgresql://localhost:5432/db_do",
+                // "-u", "postgres",
+                // "-p", "password",
+                // "-s", "brandon.sql"
+
+                "-d", "jdbc:postgresql://localhost:5432/bundo_db",
                 "-u", "postgres",
                 "-p", "password",
-                "-s", "brandon.sql"
+                // "-s", "brandon.sql"
+                "--tables"
             ]
         }
     ]

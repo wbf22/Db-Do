@@ -3,6 +3,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -13,10 +14,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.stream.Collectors;
 
 
 class DbDo {
 
+    private static int EXTRA_SPACE_BEFORE_VALUE = 3;
 
     public static void main(String[] args) {
         Map<String, String> shortArgs = Map.of(
@@ -45,7 +48,7 @@ class DbDo {
             args, 
             shortArgs, 
             null, 
-            null, 
+            Map.of("--tables", "Print out all schemas and tables in the database"), 
             Map.of("-h", "View help", "--help", "View help"), 
             "Db Do!",
             "An app for querying a database using sql files",
@@ -65,117 +68,287 @@ class DbDo {
 
         try {
             Map<String, String> parsedArgs = parser.parseArgs();
+
     
             String url = parsedArgs.get("-d");
             String username = parsedArgs.get("-u");
             String password = parsedArgs.get("-p");
             String script = parsedArgs.get("-s");
 
+            // print out table definitions if present
+            if (parsedArgs.containsKey("--tables")) {
+                printSchemas(url, username, password);
+            }
+
+            // run any user provided scripts
+            if (script != null) {
+
+                // Perform database operations here
+                Connection connection = DriverManager.getConnection(url, username, password);
+
+                Statement statement = connection.createStatement();
+                String sql = Files.readString(
+                    Path.of(script)
+                );
+                statement.execute(sql);
+                ResultSet resultSet = statement.getResultSet();
+
+                if (resultSet != null) {
+
+                    // Process the ResultSet
+                    List<List<Record>> allRecords = new ArrayList<>();
+                    while (resultSet.next()) {
+
+                        List<Record> records = new ArrayList<>();
+                        for (int i = 1; i <= resultSet.getMetaData().getColumnCount(); i++) {
+                            String columnName = resultSet.getMetaData().getColumnName(i);
+                            Object colValue = getColumnValue(resultSet, i);
+                            String columnValue = colValue == null ? "null" : colValue.toString();
+
+                            PostgresType type = getColumnType(resultSet, i);
+                            records.add(
+                                new Record(
+                                    type,
+                                    columnName,
+                                    columnValue
+                                )
+                            );
+
+                        }
+                        allRecords.add(
+                            records
+                        );
+                    }
+
+                    // pretty print out records
+                    prettyPrintRecords(allRecords);
+
+                }
+
+                connection.close(); // Close the connection when done
+            }
+
+
+        } 
+        catch (SQLException | IOException e) {
+            System.err.println("Error: " + e.getMessage());
+        }
+        catch(ArgParser.HelpException e) {}
+
+
+    
+    }
+
+    private static void prettyPrintRecords(List<List<Record>> allRecords) throws SQLException {
+
+        // pretty print out records
+        if (!allRecords.isEmpty()) {
+
+            // get biggest column name
+            int columnLabelLength = allRecords.stream()
+                .flatMap(recordList -> recordList.stream())
+                .mapToInt(record -> record.columnName.length())
+                .max()
+                .orElse(0);
+
+            // add spacing to column names
+            Map<String, String> columnNamesWithSpacing = allRecords.stream()
+                .flatMap(recordList -> recordList.stream())
+                .collect(
+                    Collectors.toMap(
+                        record -> record.columnName, 
+                        record -> fitToLength(record.columnName, columnLabelLength),
+                        (existingValue, newValue) -> newValue // Merge function to handle duplicate keys
+                    )
+                );
+
+            // get the biggest row
+            int biggestRow = allRecords.stream()
+                .mapToInt(records -> records.stream()
+                    .mapToInt(record -> columnNamesWithSpacing.get(record.columnName).length() + record.columnValue.length() + EXTRA_SPACE_BEFORE_VALUE)
+                    .max()
+                    .orElse(0)
+                )
+                .max()
+                .orElse(0);
+
+            // print out pretty
+            int width = getTerminalWidth();
+            int recordsPerRow = width / biggestRow;
+            if (recordsPerRow < 1) recordsPerRow = 1;
+            int desiredLength = (width / recordsPerRow) ;
+            for (int i = 0; i < allRecords.size(); i++) {
+                
+                System.out.println();
+                boolean finishedY = false;
+                int y = 0;
+                while (!finishedY) {
+
+                    finishedY = true;
+                    for (int x = 0; x < recordsPerRow; x++) {
+                        if (i + x < allRecords.size()) {
+                            List<Record> records = allRecords.get(i + x);
+
+                            if (y < records.size()) {
+
+                                Record record = records.get(y);
+                                String columnName = columnNamesWithSpacing.get(record.columnName);
+
+                                // determine whitespace
+                                int totalLength = columnName.length() + EXTRA_SPACE_BEFORE_VALUE +  record.columnValue.length();
+                                int neededWhitespace = desiredLength - totalLength;
+                                if (neededWhitespace < 0) neededWhitespace = 0;
+                                if (x == recordsPerRow - 1) neededWhitespace = 0;
+
+                                // determine colors
+                                String columnNameColor = record.columnNameColorOverride != null ? record.columnNameColorOverride : AnsiControl.RESET.toString();
+                                String columnValueColor = record.columnValueColorOverride != null ? record.columnValueColorOverride : getColumnColor(record.type, record.columnValue);
+
+                                String value = columnNameColor + columnName + " ".repeat(EXTRA_SPACE_BEFORE_VALUE) + columnValueColor + record.columnValue + AnsiControl.RESET + " ".repeat(neededWhitespace);
+                                System.out.print(value);
+                                // int total = value.length();
+                                finishedY = false;
+                            }
+                            else {
+                                if (x != recordsPerRow - 1)
+                                    System.out.print(" ".repeat(desiredLength));
+
+                            }
+                        }
+                        else {
+                            System.out.print(" ".repeat(desiredLength));
+                        }
+                    }
+                    System.out.println();
+                    y++;
+                }
+                i += recordsPerRow - 1;
+                System.out.println();
+
+
+            }
+
+        }
+        else {
+            System.out.println();
+            System.out.println("NO RESULTS");
+            System.out.println();
+        }
+    }
+
+    public static void printSchemas(String url, String username, String password) {
+
+        try {
+            
             // Perform database operations here
-            // pgp('postgres://postgres:password@localhost:5432/bundo_db');
             Connection connection = DriverManager.getConnection(url, username, password);
 
             Statement statement = connection.createStatement();
-            String sql = Files.readString(
-                Path.of(script)
-            );
+            String sql = """
+                SELECT schema_name
+                FROM information_schema.schemata;
+            """;
             statement.execute(sql);
             ResultSet resultSet = statement.getResultSet();
 
             if (resultSet != null) {
 
-                // get the length of column names
-                int columnLabelLength = 0;
-                for (int i = 1; i <= resultSet.getMetaData().getColumnCount(); i++) {
-                    int nameLength = resultSet.getMetaData().getColumnName(i).length();
-                    if (nameLength > columnLabelLength) columnLabelLength = nameLength;
-                }
-
-                // Process the ResultSet
-                int biggestRow = 0;
-                List<List<Record>> allRecords = new ArrayList<>();
+                // get schema names
+                List<String> schemaNames = new ArrayList<>();
                 while (resultSet.next()) {
-
-                    List<Record> records = new ArrayList<>();
-                    for (int i = 1; i <= resultSet.getMetaData().getColumnCount(); i++) {
-                        String columnName = fitToLength(
-                            resultSet.getMetaData().getColumnName(i),
-                            columnLabelLength
-                        );
-                        String columnValue = getColumnValue(resultSet, i).toString();
-
-                        PostgresType type = getColumnType(resultSet, i);
-                        int totalLength = columnName.length() + 3 +  columnValue.length();
-                        records.add(
-                            new Record(
-                                type,
-                                columnName,
-                                columnValue,
-                                totalLength
-                            )
-                        );
-
-                        if (totalLength > biggestRow) biggestRow = totalLength;
-                    }
-                    allRecords.add(
-                        records
-                    );
+                    schemaNames.add(resultSet.getString(1));
                 }
+                schemaNames = schemaNames.stream()
+                    .filter(name -> !name.startsWith("pg_"))
+                    .filter(name -> !name.equals("information_schema"))
+                    .toList();
 
-                // pretty print out records
-                if (!allRecords.isEmpty()) {
-                    // print out pretty
-                    int width = getTerminalWidth();
-                    int recordsPerRow = width / biggestRow;
-                    if (recordsPerRow < 1) recordsPerRow = 1;
-                    int desiredLength = (width / recordsPerRow) ;
-                    for (int i = 0; i < allRecords.size(); i++) {
+                for (String schema : schemaNames) {
+                    System.out.println();
+                    System.out.println();
+                    System.out.println(AnsiControl.color(137, 49, 140) + "SCHEMA " + schema + AnsiControl.RESET);
+
+                    // get tables for the schema
+                    sql = """
+                        SELECT table_name
+                        FROM information_schema.tables
+                        WHERE table_schema = ?;
+                    """;
+                    PreparedStatement pStatement = connection.prepareStatement(sql);
+                    pStatement.setString(1, schema);
+                    resultSet = pStatement.executeQuery();
+                    List<String> tableNames = new ArrayList<>();
+                    while (resultSet.next()) {
+                        tableNames.add(resultSet.getString(1));
+                    }
+
+                    // print out table definitions
+                    List<List<Record>> allRecords = new ArrayList<>();
+                    for (String table : tableNames) {
+
+                        List<Record> rows = new ArrayList<>();
+                        Record tableTitle = new Record(
+                            PostgresType.text,
+                            "TABLE " + schema + "." + table,
+                            ""
+                        );
+                        tableTitle.columnNameColorOverride = AnsiControl.color(51, 56, 189);
+                        rows.add(tableTitle);
                         
-                        System.out.println();
-                        boolean finishedY = false;
-                        int y = 0;
-                        while (!finishedY) {
-
-                            finishedY = true;
-                            for (int x = 0; x < recordsPerRow; x++) {
-                                if (i + x < allRecords.size()) {
-                                    List<Record> records = allRecords.get(i + x);
-                                    if (y < records.size()) {
-                                        // String rowValue = columnName + "   " + columnColor +  columnValue + AnsiControl.RESET;
-                                        Record record = records.get(y);
-                                        int neededWhitespace = desiredLength - record.totalLength;
-                                        if (neededWhitespace < 0) neededWhitespace = 0;
-                                        if (x == recordsPerRow - 1) neededWhitespace = 0;
-                                        String value = record.columnName + "   " + getColumnColor(record.type) + record.columnValue + AnsiControl.RESET + " ".repeat(neededWhitespace);
-                                        System.out.print(value);
-                                        // int total = value.length();
-                                        finishedY = false;
-                                    }
-                                    else {
-                                        if (x != recordsPerRow - 1)
-                                            System.out.print(" ".repeat(desiredLength));
-
-                                    }
-                                }
-                                else {
-                                    System.out.print(" ".repeat(desiredLength));
-                                }
+                        sql = """
+                            SELECT column_name, column_default, is_nullable, udt_name, character_maximum_length
+                            FROM information_schema.columns
+                            WHERE table_name = ?;
+                        """;
+                        pStatement = connection.prepareStatement(sql);
+                        pStatement.setString(1, table);
+                        resultSet = pStatement.executeQuery();
+                        while (resultSet.next()) {
+                            // get column info
+                            String type = resultSet.getString(4);
+                            String columnName = resultSet.getString(1);
+                            String columnValue = type;
+                            
+                            // set max length for varchars
+                            int maxLength = resultSet.getInt(5);
+                            if (maxLength > 0) {
+                                columnValue += "(" + maxLength + ")";
                             }
-                            System.out.println();
-                            y++;
+
+                            // set nullable
+                            String defaultValue = resultSet.getString(2);
+                            boolean isNullable = resultSet.getString(3).equals("YES");
+                            if (isNullable) {
+                                columnValue += " NULL";
+                            }
+                            else {
+                                columnValue += " NOT NULL";
+                            }
+
+                            // set default value
+                            if (defaultValue != null) {
+                                columnValue += " DEFAULT " + defaultValue;
+                            }
+
+                            // add commas
+                            columnValue += ",";
+
+                            Record column = new Record(
+                                PostgresType.valueOf(type),
+                                columnName,
+                                columnValue
+                            );
+                            rows.add(column);
                         }
-                        i += recordsPerRow - 1;
+                        
+                        allRecords.add(rows);
+
                         System.out.println();
-        
-        
                     }
 
+                    prettyPrintRecords(allRecords);
                 }
-                else {
-                    System.out.println();
-                    System.out.println("NO RESULTS");
-                    System.out.println();
-                }
+
 
             }
             else {
@@ -187,31 +360,29 @@ class DbDo {
 
             connection.close(); // Close the connection when done
 
-        } catch (SQLException | IOException e) {
+        } catch (SQLException e) {
             System.err.println("Error: " + e.getMessage());
         }
         catch(ArgParser.HelpException e) {}
 
-
-    
     }
 
     public static class Record {
         public PostgresType type;
         public String columnName;
         public String columnValue;
-        public int totalLength;
 
-        public Record(DbDo.PostgresType type, String columnName, String columnValue, int totalLength) {
+        public String columnNameColorOverride;
+        public String columnValueColorOverride;
+
+        public Record(DbDo.PostgresType type, String columnName, String columnValue) {
             this.type = type;
             this.columnName = columnName;
             this.columnValue = columnValue;
-            this.totalLength = totalLength;
         }
 
         
     }
-
 
     public static class ArgParser {
 
@@ -358,11 +529,13 @@ class DbDo {
         };
     }
 
-    private static String getColumnColor(PostgresType type) throws SQLException {
+    private static String getColumnColor(PostgresType type, Object value) throws SQLException {
+        if (value == null || "null".equals(value)) return AnsiControl.color(38, 38, 38);
+
         return switch (type) {
             case int8, bigserial, float8, money, numeric -> 
                 AnsiControl.color(214, 75, 200);
-            case varchar, bpchar, cidr, inet, json, jsonb, macaddr, macaddr8, text, tsquery, tsvector, uuid, xml -> 
+            case varchar, bpchar, cidr, inet, json, jsonb, macaddr, macaddr8, text, tsquery, tsvector, uuid, xml, name, _text -> 
                 AnsiControl.color(75, 214, 84);
             case date, time, timetz, timestamp, timestamptz -> 
                 AnsiControl.color(214, 75, 75);
@@ -416,7 +589,10 @@ class DbDo {
         tsvector,
         txid_snapshot,
         uuid,
-        xml;
+        xml,
+        geography,
+        name,
+        _text;
     }
 
     private static String fitToLength(String str, int length) {

@@ -3,224 +3,253 @@
 ----------------------------------------assistant
 
 
-If you have any more questions or need further assistance, feel free to ask! I'm here to help.
+To allow the overriding of previously set keys when using `Collectors.toMap()` in Java, you can provide a merge function as the third argument to the `toMap()` method. The merge function will be called when there are duplicate keys, and it allows you to specify how to resolve the conflict.
 
-
-----------------------------------------user
-
-
-
-
-
-----------------------------------------assistant
-
-
-The error you are encountering is likely due to the fact that you are using double quotes (`"`) around the `user_id` value in your SQL query. In SQL, string literals should be enclosed in single quotes (`'`), not double quotes.
-
-To fix the error, you should modify your SQL query to use single quotes around the `user_id` value. Here is the corrected code:
+Here is an example of how you can modify your code to include a merge function to handle duplicate keys:
 
 ```java
-String sql = """
-select * from users.user
-where user_id='user__30313282-a2ae-49e4-b9e9-9aaf544acc61';
-""";
-ResultSet resultSet = statement.executeQuery(sql);
+Map<String, String> columnNamesWithSpacing = allRecords.stream()
+    .flatMap(recordList -> recordList.stream())
+    .collect(
+        Collectors.toMap(
+            record -> record.columnName, 
+            record -> fitToLength(record.columnName, columnLabelLength),
+            (existingValue, newValue) -> newValue // Merge function to handle duplicate keys
+        )
+    );
 ```
 
-By using single quotes around the `user_id` value in your SQL query, you should no longer encounter the error related to the column not existing.
+In the above code snippet, the merge function `(existingValue, newValue) -> newValue` specifies that if a duplicate key is encountered, the new value will override the existing value. You can modify the merge function to implement custom logic for resolving conflicts, such as concatenating values or selecting one of the values based on certain criteria.
 
 
 ----------------------------------------user
 
 
-Hey chat, why am I getting this error when runnin this?
+I'm getting a duplicate key error when doing this:
 
-Error: ERROR: column "user__30313282-a2ae-49e4-b9e9-9aaf544acc61" does not exist
-  Position: 40
-
-String sql = """
-select * from users.user
-where user_id="user__30313282-a2ae-49e4-b9e9-9aaf544acc61";
-""";
-ResultSet resultSet = statement.executeQuery(sql);
-
-
-
-----------------------------------------assistant
+Map<String, String> columnNamesWithSpacing = allRecords.stream()
+                .flatMap(recordList -> recordList.stream())
+                .collect(
+                    Collectors.toMap(
+                        record -> record.columnName, 
+                        record -> fitToLength(record.columnName, columnLabelLength)
+                    )
+                );
 
 
-You can retrieve the mentioned data types from a ResultSet in Java using a switch statement like this:
-
-```java
-return switch (type) {
-    case "int8", "bigserial" -> resultSet.getLong(index);
-    case "varchar" -> resultSet.getString(index);
-    case "bit" -> resultSet.getArray(index);
-    case "varbit" -> resultSet.getBlob(index);
-    case "bool" -> resultSet.getBoolean(index);
-    case "box" -> resultSet.getObject(index);
-    case "bytea" -> resultSet.getBytes(index);
-    case "bpchar" -> resultSet.getString(index);
-    case "cidr" -> resultSet.getString(index);
-    case "circle" -> resultSet.getObject(index);
-    case "date" -> resultSet.getDate(index).toLocalDate();
-    case "float8" -> resultSet.getDouble(index);
-    case "inet" -> resultSet.getString(index);
-    case "int4" -> resultSet.getInt(index);
-    case "interval" -> resultSet.getObject(index);
-    case "json", "jsonb" -> resultSet.getString(index);
-    case "line" -> resultSet.getObject(index);
-    case "lseg" -> resultSet.getObject(index);
-    case "macaddr", "macaddr8" -> resultSet.getString(index);
-    case "money" -> resultSet.getBigDecimal(index);
-    case "numeric" -> resultSet.getBigDecimal(index);
-    case "path" -> resultSet.getObject(index);
-    case "pg_lsn" -> resultSet.getObject(index);
-    case "point" -> resultSet.getObject(index);
-    case "polygon" -> resultSet.getObject(index);
-    case "float4" -> resultSet.getFloat(index);
-    case "int2", "smallserial", "serial" -> resultSet.getInt(index);
-    case "text" -> resultSet.getString(index);
-    case "time" -> resultSet.getTime(index).toLocalTime();
-    case "timetz" -> resultSet.getTime(index).toLocalTime();
-    case "timestamp" -> resultSet.getTimestamp(index).toLocalDateTime();
-    case "timestamptz" -> resultSet.getTimestamp(index).toInstant().atZone(ZoneId.systemDefault());
-    case "tsquery" -> resultSet.getString(index);
-    case "tsvector" -> resultSet.getString(index);
-    case "txid_snapshot" -> resultSet.getObject(index);
-    case "uuid" -> UUID.fromString(resultSet.getString(index));
-    case "xml" -> resultSet.getString(index);
-    default -> resultSet.getString(index);
-};
-```
-
-Please note that the actual method calls may vary depending on the specific JDBC driver you are using, and you may need to adjust them accordingly.
-
-
-----------------------------------------user
-
-
-How would I retrieve the following types:
-
-int8,
-        bigserial,
-        bit,
-        varbit,
-        bool,
-        box,
-        bytea,
-        bpchar,
-        varchar,
-        cidr,
-        circle,
-        date,
-        float8,
-        inet,
-        int4,
-        interval,
-        json,
-        jsonb,
-        line,
-        lseg,
-        macaddr,
-        macaddr8,
-        money,
-        numeric,
-        path,
-        pg_lsn,
-        point,
-        polygon,
-        float4,
-        int2,
-        smallserial,
-        serial,
-        text,
-        time,
-        timetz,
-        timestamp,
-        timestamptz,
-        tsquery,
-        tsvector,
-        txid_snapshot,
-        uuid,
-        xml;
-
-Can you put it in a switch statement like this?
-
-
-        return switch (type) {
-            case int8, bigserial -> resultSet.getLong(index);
-            case varchar -> resultSet.getString(index);
-            case bit -> resultSet.getArray(index);
-            case varchar -> resultSet.getBigDecimal(index);
-            case varbit -> resultSet.getBlob(index);
-            case varchar -> resultSet.getByte(index);
-            case varchar -> resultSet.getBytes(index);
-            case varchar -> resultSet.getCharacterStream(index);
-            case varchar -> resultSet.getClob(index);
-            case varchar -> resultSet.getDate(index);
-            case varchar -> resultSet.getDouble(index);
-            case varchar -> resultSet.getFloat((index);
-            case varchar -> resultSet.getInt((index);
-            case varchar -> resultSet.getFloat((index);
-            case varchar -> resultSet.getFloat((index);
-            default -> resultSet.getString(index);
-        };
+How can I allow the overriding of previously set keys?
 
 
 ----------------------------------------assistant
 
 
-In PostgreSQL, a `varbit` data type is used to store variable-length bit strings. When retrieving a `varbit` value from a PostgreSQL database using Java, it would typically be retrieved as a byte array (byte[]) rather than a BLOB (Binary Large Object).
-
-You can retrieve a `varbit` value as a byte array in Java by using the `getBytes()` method provided by the PostgreSQL JDBC driver. Here is an example of how you can retrieve a `varbit` value as a byte array in Java:
+You can achieve this by providing a lambda expression for the key and value mappers within the `toMap()` method. Here is an example of how you can perform logic on both the `id` and `name` fields of the `Person` class while converting a List of `Person` objects to a Map:
 
 ```java
-String query = "SELECT my_varbit_column FROM my_table WHERE id = ?";
-PreparedStatement statement = connection.prepareStatement(query);
-statement.setInt(1, someId);
-ResultSet resultSet = statement.executeQuery();
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
-if (resultSet.next()) {
-    byte[] varbitValue = resultSet.getBytes("my_varbit_column");
-    // Process the varbitValue byte array as needed
+public class Person {
+    private int id;
+    private String name;
+
+    public Person(int id, String name) {
+        this.id = id;
+        this.name = name;
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public static void main(String[] args) {
+        List<Person> personList = List.of(
+            new Person(1, "Alice"),
+            new Person(2, "Bob"),
+            new Person(3, "Charlie")
+        );
+
+        Map<String, String> personMap = personList.stream()
+            .collect(Collectors.toMap(
+                person -> "Key_" + person.getId(), // Key logic
+                person -> "Value_" + person.getName() // Value logic
+            ));
+
+        System.out.println(personMap);
+    }
 }
 ```
 
-By retrieving the `varbit` value as a byte array, you can work with the binary data in your Java application as needed.
+In this example, the lambda expressions `person -> "Key_" + person.getId()` and `person -> "Value_" + person.getName()` are used as the key and value mappers, respectively, within the `toMap()` method. These lambda expressions perform some logic on both the `id` and `name` fields of the `Person` objects before adding them to the Map.
 
 
 ----------------------------------------user
 
 
-would a varbit in postgres be retrieved as a blob?
+How can you do that as a lambda in the toMap? I'd like to do some logic on both the id and the name
 ----------------------------------------assistant
 
 
-In Java SQL, a BLOB (Binary Large Object) is a data type used to store large binary data, such as images, audio, video, or other multimedia files. BLOBs can store a large amount of binary data and are typically used for storing files or binary data that do not fit into a regular column data type.
+In Java, you can convert a List of objects to a Map using the `Collectors.toMap()` method within a Stream. Here is an example of how you can achieve this:
 
-A CLOB (Character Large Object) is a data type used to store large text data, such as documents, articles, or other textual information. CLOBs can store a large amount of character data and are typically used for storing large text documents or strings that do not fit into a regular column data type.
-
-In Java SQL, BLOBs and CLOBs can be used to store and retrieve large binary or text data respectively from a relational database.
-
-
-----------------------------------------user
-
-
-What is a blob and a clob in java sql?
-----------------------------------------assistant
-
-
-In Java, the equivalent of a fixed-length bit string would be a boolean array with a specified length. Here is an example:
+Suppose you have a class named `Person` with fields `id` and `name`, and you have a List of `Person` objects that you want to convert to a Map where the key is the `id` and the value is the `name`:
 
 ```java
-boolean[] bits = new boolean[n];
-``` 
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
-This would create an array of boolean values with a fixed length of 'n'. Each element in the array would represent a single bit in the bit string.
+public class Person {
+    private int id;
+    private String name;
+
+    public Person(int id, String name) {
+        this.id = id;
+        this.name = name;
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public static void main(String[] args) {
+        List<Person> personList = List.of(
+            new Person(1, "Alice"),
+            new Person(2, "Bob"),
+            new Person(3, "Charlie")
+        );
+
+        Map<Integer, String> personMap = personList.stream()
+            .collect(Collectors.toMap(Person::getId, Person::getName));
+
+        System.out.println(personMap);
+    }
+}
+```
+
+In this example, the `personList` is converted into a Stream, and the `Collectors.toMap()` method is used to convert the Stream of `Person` objects to a Map where the `id` is the key and the `name` is the value. The `Person::getId` and `Person::getName` are used as the key and value mappers, respectively.
 
 
 ----------------------------------------user
 
 
-What would the equivalent of this be in java? bit [ (n) ] 	  	fixed-length bit string
+How can you convert a list of object to a map in a stream?
+----------------------------------------assistant
+
+
+In Java, you can convert a Stream to a Map by using the `Collectors.toMap()` method. This method allows you to specify how to map the elements of the Stream to the keys and values of the Map.
+
+Here is an example of how you can convert a Stream to a Map in Java:
+
+```java
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.Map;
+
+public class StreamToMapExample {
+    public static void main(String[] args) {
+        Stream<String> stream = Stream.of("apple", "banana", "cherry");
+
+        Map<Integer, String> map = stream.collect(Collectors.toMap(
+                String::length, // Key mapper
+                s -> s, // Value mapper
+                (existingValue, newValue) -> newValue // Merge function for handling duplicate keys
+        ));
+
+        System.out.println(map);
+    }
+}
+```
+
+In this example, the `toMap()` method is used to convert the Stream of strings into a Map where the key is the length of the string and the value is the string itself. The `Collectors.toMap()` method takes three arguments - the key mapper function, the value mapper function, and a merge function to handle duplicate keys.
+
+
+----------------------------------------user
+
+
+How can you convert a stream to a map again in java?
+----------------------------------------assistant
+
+
+To determine which column the primary key constraint applies to, you can query the system catalog table "information_schema.key_column_usage". Here is an example query that you can use to find the column(s) that the primary key constraint applies to in a table:
+
+```sql
+SELECT column_name
+FROM information_schema.key_column_usage
+WHERE constraint_name = 'your_primary_key_constraint_name'
+AND table_name = 'your_table_name';
+```
+
+Replace 'your_primary_key_constraint_name' with the name of the primary key constraint obtained from the previous query, and 'your_table_name' with the name of the table you are interested in. This query will return the column(s) that the primary key constraint applies to in the specified table.
+
+
+----------------------------------------user
+
+
+How do you know what column it applies too?
+----------------------------------------assistant
+
+
+To determine if a column in a table is the primary key, you can query the system catalog table "information_schema.table_constraints". Here is an example query that you can use to check if a column is the primary key in a table:
+
+```sql
+SELECT constraint_name
+FROM information_schema.table_constraints
+WHERE table_name = 'your_table_name'
+AND constraint_type = 'PRIMARY KEY';
+```
+
+Replace 'your_table_name' with the name of the table you are interested in. If the column is the primary key in the table, the query will return the name of the primary key constraint.
+
+
+----------------------------------------user
+
+
+How can you determine if a column in a table is the primary key?
+----------------------------------------assistant
+
+
+Yes, you can create a column of type "timestamptz" in PostgreSQL. The "timestamptz" data type is used to store date and time values with timezone information. Here is an example of how you can create a column of type "timestamptz":
+
+```sql
+CREATE TABLE example_table (
+    timestamp_column timestamptz
+);
+```
+
+This will create a table named "example_table" with a column named "timestamp_column" that is of type "timestamptz".
+
+
+----------------------------------------user
+
+
+Can you make a column of this type? timestamptz
+----------------------------------------assistant
+
+
+If the "NULL" keyword is not specified in the column definition, the column will be set to NOT NULL by default. This means that the column must have a value provided when inserting a new row into the table, and it cannot contain NULL values. If you try to insert a row without providing a value for a column that is defined as NOT NULL, you will receive an error.
+
+
+----------------------------------------user
+
+
+If you don't have that what will happen?
+----------------------------------------assistant
+
+
+Yes, the "NULL" keyword in the column definition specifies that the column can contain NULL values. So, in this case, the "contract_doc" column will default to NULL if no value is provided when inserting a new row into the table.
+
+
+----------------------------------------user
+
+
+Hey chat, does this sql create table line make this column default to null? contract_doc            varchar(255) NULL,
