@@ -174,31 +174,45 @@ class DbDo {
 
             // print out pretty
             int width = getTerminalWidth();
-            int recordsPerRow = width / biggestRow;
-            if (recordsPerRow < 1) recordsPerRow = 1;
-            int desiredLength = (width / recordsPerRow) ;
-            for (int i = 0; i < allRecords.size(); i++) {
+            int numColumns = width / biggestRow;
+            if (numColumns < 1) numColumns = 1;
+            int desiredLength = (width / numColumns);
+            int recordsPerColumn = (int) Math.ceil(allRecords.size() / (double) numColumns);
+
+            // sort into columns
+            List<List<List<Record>>> columns = new ArrayList<>();
+            int lastIndex = 0;
+            for (int x = 0; x < numColumns; x++) {
+                List<List<Record>> column = new ArrayList<>();
+                int nextIndex = recordsPerColumn + lastIndex;
+                if (nextIndex > allRecords.size()) nextIndex = allRecords.size();
+                columns.add(
+                    allRecords.subList(lastIndex, nextIndex)
+                );
+                lastIndex = nextIndex;
+            }
+            int y = 0;
+            while (y < recordsPerColumn) {
                 
                 System.out.println();
                 boolean finishedY = false;
-                int y = 0;
+                int tableRow = 0;
                 while (!finishedY) {
 
                     finishedY = true;
-                    for (int x = 0; x < recordsPerRow; x++) {
-                        if (i + x < allRecords.size()) {
-                            List<Record> records = allRecords.get(i + x);
+                    for (int x = 0; x < numColumns; x++) {
+                        if (x < columns.size() && y < columns.get(x).size()) {
+                            List<Record> records = columns.get(x).get(y);
 
-                            if (y < records.size()) {
-
-                                Record record = records.get(y);
+                            if (tableRow < records.size()) {
+                                Record record = records.get(tableRow);
                                 String columnName = columnNamesWithSpacing.get(record.columnName);
 
                                 // determine whitespace
                                 int totalLength = columnName.length() + EXTRA_SPACE_BEFORE_VALUE +  record.columnValue.length();
                                 int neededWhitespace = desiredLength - totalLength;
                                 if (neededWhitespace < 0) neededWhitespace = 0;
-                                if (x == recordsPerRow - 1) neededWhitespace = 0;
+                                if (x == numColumns - 1) neededWhitespace = 0;
 
                                 // determine colors
                                 String columnNameColor = record.columnNameColorOverride != null ? record.columnNameColorOverride : AnsiControl.RESET.toString();
@@ -210,7 +224,7 @@ class DbDo {
                                 finishedY = false;
                             }
                             else {
-                                if (x != recordsPerRow - 1)
+                                if (x != numColumns - 1)
                                     System.out.print(" ".repeat(desiredLength));
 
                             }
@@ -220,9 +234,9 @@ class DbDo {
                         }
                     }
                     System.out.println();
-                    y++;
+                    tableRow++;
                 }
-                i += recordsPerRow - 1;
+                y++;
                 System.out.println();
 
 
