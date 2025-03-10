@@ -131,7 +131,7 @@ class DbDo {
 
         } 
         catch (SQLException | IOException e) {
-            System.err.println("Error: " + e.getMessage());
+            System.err.println("Error: " + e);
         }
         catch(ArgParser.HelpException e) {}
 
